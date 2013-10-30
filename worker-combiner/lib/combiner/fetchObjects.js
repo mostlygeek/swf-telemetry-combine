@@ -5,15 +5,14 @@ var fs = require('fs')
     , crypto = require('crypto')
     , debug = require('debug');
 
-var debugInfo = debug("getObject")
-    , debugFetch = debug("getObject:fetch")
-    , debugMD5 = debug("getObject:MD5")
-    , debugSkip  = debug("getObject:skip");
+var debugInfo = debug("fetchObject")
+    , debugFetch = debug("fetchObject:fetch")
+    , debugMD5 = debug("fetchObject:MD5")
+    , debugSkip  = debug("fetchObject:skip");
 
 
 module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
 
-    var queue = new async.queue(queueWorker, 25);
 
     function queueWorker(fragment, workerCB) {
 
@@ -43,7 +42,7 @@ module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
             if (err) { return workerCB(err); }
 
             if (results.exists === true && results.md5OK === true) {
-                debugSkip(fragment.key);
+                debugSkip(filename);
                 setImmediate(workerCB.bind(this, null));
             } else {
                 /* 
@@ -51,12 +50,15 @@ module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
                  * and buffering it RAM is OK.
                  */
                 s3.getObject({Bucket: bucket, Key: fragment.key}, function(err, objData) {
-                    if (err) { return workerCB(); }
+                    if (err) { 
+                        debugFetch("S3 getObject ERROR %s, %s", fragment.key, err);
+                        return workerCB(err); 
+                    }
 
                     fs.writeFile(filename, objData.Body, function(err) {
                         if (err) { 
                             debugFetch("ERROR %s", err);
-                            return workerCB(); 
+                            return workerCB(err); 
                         }
 
                         // check the downloaded MD5 to make sure everything is right
@@ -75,6 +77,7 @@ module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
         });
     };
 
+    var queue = new async.queue(queueWorker, 25);
     queue.drain = function() {
         bigDoneCB();
     };

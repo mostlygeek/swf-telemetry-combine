@@ -19,7 +19,9 @@ var s3 = new AWS.S3();
 
 var sourceBucket = 'telemetry-published-v1' 
     , bucket = 'telemetry-test-bucket'
-    , key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.201310-1383156161.32.json'
+    // borked list, missing files .., key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.201310-1383156161.32.json'
+     , key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.201310-1383169902.18.json'
+    //, key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.20131026-1383170082.7.json'
     , workDir = '/tmp/work';
 
 fetchFragmentList(s3, bucket, key, function(err, fragList) {
