@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 var AWS = require("aws-sdk")
+    , async = require('async')
     , fetchFragmentList = require("./lib/combiner/fetchFragmentList")
-    , fetchObjects = require('./lib/combiner/fetchObjects')
+    , CombinedObject = require('./lib/combiner/CombinedObject')
     ;
     
 AWS.config.update({
@@ -30,13 +31,13 @@ fetchFragmentList(s3, bucket, key, function(err, fragList) {
         , combinedObjs = [new CombinedObject(s3, sourceBucket, workDir, 0)]
         , cObj = combinedObjs[0];
     
-    for (i=0; i<items.length; i++) {
-        item = items[i];
+    for (i=0; i<fragList.length; i++) {
+        fragment = fragList[i];
 
-        if (cObj.addFragment(item) === false) {
+        if (cObj.addFragment(fragment) === false) { // It's FULL!
             // make a new one
             cObj = new CombinedObject(s3, bucket, workDir, combinedObjs.length);
-            cObj.addFragment(item);
+            cObj.addFragment(fragment);
             combinedObjs.push(cObj);
         }
     }
@@ -44,4 +45,15 @@ fetchFragmentList(s3, bucket, key, function(err, fragList) {
     combinedObjs.forEach(function(obj, i) {
         obj.debugPrint();
     });
+
+    /*
+     * Start uploading
+     */
+    var uploadQueue = async.queue(function(combinedObj, doneCB) {
+        combinedObj.upload(bucket, 'test-' + combinedObj.num, function(err, result) {
+            doneCB();
+        });
+    }, 1); // do 1 at a time
+
+    uploadQueue.push(combinedObjs);
 });
