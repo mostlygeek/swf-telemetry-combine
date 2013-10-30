@@ -13,7 +13,7 @@ var debugInfo = debug("getObject")
 
 module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
 
-    var queue = new async.queue(queueWorker, 125);
+    var queue = new async.queue(queueWorker, 25);
 
     function queueWorker(fragment, workerCB) {
 
