@@ -12,6 +12,7 @@ var program = require('commander')
         err : debug("error")
         , copy: debug("copy")
         , page: debug("page")
+        , skip: debug("skip")
         , dry: debug("copy:dryrun")
     }
     ;
@@ -19,7 +20,8 @@ var program = require('commander')
 program
     .version("0.0.1")
     .option('--dryrun', 'Don\'t make actual changes', Boolean, false)
-    .option('-r, --region <region>', 'AWS region default: us-east-1', String, 'us-east-1' )
+    .option('--sourceRegion <region>', 'source bucket region', String, 'us-east-1' )
+    .option('--destRegion <region>', 'dest bucket region', String, 'us-east-1' )
     .option('-s, --source <bucket>', 'Source bucket', String, "")
     .option('-p, --prefix <prefix>', 'Prefix for source bucket', String)
     .option('-d, --dest <bucket>', 'Destination bucket', String)
@@ -36,8 +38,8 @@ AWS.config.update({
 AWS.config.update({region: program.region});
 AWS.config.apiVersions = { s3 : '2006-03-01' };
 
-
-var S3 = new AWS.S3();
+var sourceS3 = new AWS.S3({region: program.sourceRegion})
+    , destS3 = new AWS.S3({region: program.destRegion});
 
 (function copyObjects(source, prefix, marker, dest) {
     var params = {
@@ -50,7 +52,7 @@ var S3 = new AWS.S3();
         params.Marker = marker;
     }
 
-    S3.listObjects(params, function(err, data) {
+    sourceS3.listObjects(params, function(err, data) {
         if (err) { console.log(err); return; }
 
         var numObjects = data.Contents.length,
@@ -69,26 +71,45 @@ var S3 = new AWS.S3();
                 return;
             }
 
-            S3.copyObject({
+            destS3.headObject({
                 Bucket: program.dest
-                , CopySource: sourceKey
-                , Key : s3Obj.Key
+                , Key: s3Obj.Key
             }, function(err, data) {
-                if (err) {
-                    d.error("%s", err);
-                    return cb(err);
+                var doUpload = true;
+
+                if (data) {
+                    if (data.ETag == s3Obj.ETag) {
+                        doUpload = false;
+                    }
                 }
 
-                numDone += 1;
-                d.copy("done %dms (%d/%d) avg: %d. %s/%s"
-                    , (Date.now() - startTime)
-                    , numDone
-                    , numObjects
-                    , Math.round(numObjects / (Date.now() - queueStartTime) * 1000)
-                    , program.dest, s3Obj.Key);
-                cb(null);
+                if (doUpload === false) {
+                    d.skip("Skip. Already copied", s3Obj.Key);
+                    return cb(null);
+                }
+
+                destS3.copyObject({
+                    Bucket: program.dest
+                    , CopySource: sourceKey
+                    , Key : s3Obj.Key
+                }, function(err, data) {
+                    if (err) {
+                        d.error("%s", err);
+                        return cb(err);
+                    }
+
+                    numDone += 1;
+                    d.copy("done %dms (%d/%d) avg: %d. %s/%s"
+                        , (Date.now() - startTime)
+                        , numDone
+                        , numObjects
+                        , Math.round(numObjects / (Date.now() - queueStartTime) * 1000)
+                        , program.dest, s3Obj.Key);
+                    cb(null);
+                });
             });
-        }, 50);  // S3 seems to have a connection limit
+
+        }, 100);  // S3 seems to have some sort of connection limit / IP so a low'ish limit is ok
 
         q.drain = function() {
             if (data.IsTruncated) {
