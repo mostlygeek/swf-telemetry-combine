@@ -14,13 +14,13 @@ AWS.config.update({
 //AWS.config.update({region: 'us-east-1'});
 AWS.config.apiVersions = { s3 : '2006-03-01' };
 
-var s3 = new AWS.S3();
+var s3 = new AWS.S3({region:'us-east-1'});
 
 
 var sourceBucket = 'telemetry-published-v1' 
     , bucket = 'telemetry-test-bucket'
-    // borked list, missing files .., key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.201310-1383156161.32.json'
-     , key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.201310-1383169902.18.json'
+    , key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.201310-1383156161.32.json'
+    // , key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.201310-1383169902.18.json'
     //, key = 'filelists/idle_daily/Firefox/nightly/27.0a1/20130918030202.20131026-1383170082.7.json'
     , workDir = '/tmp/work';
 

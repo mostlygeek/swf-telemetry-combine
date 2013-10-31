@@ -11,10 +11,30 @@ var debugInfo = debug("fetchObject")
     , debugSkip  = debug("fetchObject:skip");
 
 
+/*
+ * given a list of S3 Keys, this will downloa them all concurrently 
+ * since they are usually quite small < 100K and doing them serially 
+ * would be quite slow.
+ */
 module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
 
 
+    /*
+     * we need *all* the fragments for a job to be successful so 
+     * on the first failure. Unfortunately w/ async.queue there 
+     * is no way to abort further processing.
+     */
+    var ERROR_HAPPENED = null;
+
     function queueWorker(fragment, workerCB) {
+        /*
+         * there's no way to stop the queue() from flushing so we just don't do
+         * anything with other workers. 
+         */
+        if (ERROR_HAPPENED) {
+            setImmediate(workerCB);
+            return;
+        }
 
         var etag = fragment.etag;
         var filename = libfs.makeFragName(tempDir, fragment);
@@ -39,7 +59,10 @@ module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
                 }
             }]
         }, function(err, results) {
-            if (err) { return workerCB(err); }
+            if (err) { 
+                ERROR_HAPPENED = err;
+                return workerCB(err); 
+            }
 
             if (results.exists === true && results.md5OK === true) {
                 debugSkip(filename);
@@ -52,12 +75,14 @@ module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
                 s3.getObject({Bucket: bucket, Key: fragment.key}, function(err, objData) {
                     if (err) { 
                         debugFetch("S3 getObject ERROR %s, %s", fragment.key, err);
+                        ERROR_HAPPENED = err;
                         return workerCB(err); 
                     }
 
                     fs.writeFile(filename, objData.Body, function(err) {
                         if (err) { 
                             debugFetch("ERROR %s", err);
+                            ERROR_HAPPENED = err;
                             return workerCB(err); 
                         }
 
@@ -67,7 +92,9 @@ module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
                                 debugFetch("Done: %s (%s)", fragment.key, fragment.etag);
                                 workerCB();
                             } else {
-                                workerCB();
+                                var err = new Error("MD5/etag mismatch on: " + fragment.key);
+                                workerCB(err);
+                                ERROR_HAPPENED = err;
                                 debugFetch("Error, md5 mismatch %s", fragment.key);
                             }
                         });
@@ -79,7 +106,7 @@ module.exports = function(s3, bucket, tempDir, fragList, bigDoneCB) {
 
     var queue = new async.queue(queueWorker, 25);
     queue.drain = function() {
-        bigDoneCB();
+        bigDoneCB(ERROR_HAPPENED);
     };
 
     // let's get the party started
