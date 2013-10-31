@@ -57,7 +57,6 @@ var sourceS3 = new AWS.S3({region: program.sourceRegion})
 
         var numObjects = data.Contents.length,
             numDone = 0, 
-            inFlight = 0,
             queueStartTime = Date.now();
 
         var q = async.queue(function(s3Obj, cb) {
@@ -110,10 +109,13 @@ var sourceS3 = new AWS.S3({region: program.sourceRegion})
                 });
             });
         }, 250); 
-
-
+        // there is a low copyObject parallel operation limit in S3, tested about ~10
+        // the headObject limit seems *much* higher, so running 250 concurrent requests seems 
+        // to be quite fast!
 
         q.drain = function() {
+
+            d.copy("Queue took: %d seconds", Math.floor((Date.now()-queueStartTime)/1000));
             if (data.IsTruncated) {
                 var marker = data.Contents[data.Contents.length-1].Key;
                 copyObjects(source, prefix, marker, dest);
