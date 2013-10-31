@@ -84,7 +84,8 @@ var sourceS3 = new AWS.S3({region: program.sourceRegion})
                 }
 
                 if (doUpload === false) {
-                    d.skip("Skip. Already copied", s3Obj.Key);
+                    numDone += 1;
+                    d.skip("Skip. Already copied (%d/%d): %s", numDone, numObjects, s3Obj.Key);
                     return cb(null);
                 }
 
