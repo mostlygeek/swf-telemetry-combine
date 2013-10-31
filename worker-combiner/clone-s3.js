@@ -109,8 +109,9 @@ var sourceS3 = new AWS.S3({region: program.sourceRegion})
                     cb(null);
                 });
             });
+        }, 250); 
 
-        }, 100);  // S3 seems to have some sort of connection limit / IP so a low'ish limit is ok
+
 
         q.drain = function() {
             if (data.IsTruncated) {
