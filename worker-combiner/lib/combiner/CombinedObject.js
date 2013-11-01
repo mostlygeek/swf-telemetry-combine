@@ -208,7 +208,7 @@ CombinedObject.prototype.upload = function(destBucket, key, uploadCB) {
                 debugUpload("Re-uploading: %s, ETag mismatch, %s(s3) != %s(local)", 
                         key, results.S3ETag, results.localETag);
             } else {
-                debugUpload("Uploading object %d", this.num);
+                debugUpload("Uploading object %s", key);
             }
 
             var partFiles = [];
