@@ -3,6 +3,7 @@
 var program = require('commander')
     , AWS = require("aws-sdk")
     , async = require('async')
+    , fs = require('fs')
     , fetchFragmentList = require("./lib/combiner/fetchFragmentList")
     , CombinedObject = require('./lib/combiner/CombinedObject')
     ;
@@ -11,12 +12,19 @@ program
     .version('0.0.1')
     .option('-r, --region <region>', 'region of SWF, default: us-east-1', String, 'us-east-1')
     .option('-s, --swfdomain <domain>', 'SWF domain', String)
+    .option('-w, --workdir <dir>', 'temp working directory for files, def: /tmp/work', String, '/tmp/work')
     .parse(process.argv);
 
 if (!program.swfdomain) {
     console.log("domain required");
     process.exit();
 }
+
+if (!fs.existsSync(program.workdir)) {
+    console.log(program.workdir, " does not exist");
+    process.exit();
+}
+
 
 AWS.config.update({
     accessKeyId : process.env.AWS_ACCESS_KEY,
@@ -52,7 +60,7 @@ var S3 = new AWS.S3({region:'us-east-1'})
         var input = JSON.parse(activityTask.input);
         console.log("Got Task, input: ", activityTask.input)
         combineObjects(
-            '/tmp/work'
+            program.workdir
             , input.sourceBucket
             , input.outputBucket
             , input.outputKey
